@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">UniversalCamera</string>
+    <string-array name="sample_camera_spinner_item">
+        <item>0: BACK</item>
+        <item>1: FRONT</item>
+        <item>2: EXTERNAL</item>
+    </string-array>
 </resources>

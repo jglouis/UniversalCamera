@@ -18,6 +18,9 @@ import android.util.Size
 import android.util.SparseIntArray
 import android.view.Surface
 import android.view.TextureView
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import kotlinx.android.synthetic.main.activity_preview.*
 import java.io.File
@@ -33,6 +36,10 @@ class PreviewActivity : AppCompatActivity() {
      */
     private val mCameraOpenCloseLock = Semaphore(1)
 
+    private val mSpinnerCameraAdapter by lazy {
+        ArrayAdapter<CameraSpinnerItem>(this, R.layout.spinner_camera_item)
+    }
+
     private val mCameraManager by lazy { getSystemService(Context.CAMERA_SERVICE) as CameraManager }
     private var mBackgroundThread: HandlerThread? = null
     private var mBackgroundHandler: Handler? = null
@@ -47,13 +54,15 @@ class PreviewActivity : AppCompatActivity() {
     private var mCaptureSession: CameraCaptureSession? = null
     private val mTextureListener = object :
             TextureView.SurfaceTextureListener {
-        override fun onSurfaceTextureSizeChanged(p0: SurfaceTexture?, width: Int, height: Int) = configureTransform(
-                width, height)
+        override fun onSurfaceTextureSizeChanged(p0: SurfaceTexture?, width: Int, height: Int) =
+                configureTransform(width, height)
 
         override fun onSurfaceTextureUpdated(p0: SurfaceTexture?) = Unit
         override fun onSurfaceTextureDestroyed(p0: SurfaceTexture?) = true
-        override fun onSurfaceTextureAvailable(p0: SurfaceTexture?, width: Int, height: Int) = openCamera(
-                width, height)
+        override fun onSurfaceTextureAvailable(p0: SurfaceTexture?, width: Int, height: Int) =
+                openCamera((spinnerSelectedCamera.selectedItem as CameraSpinnerItem).cameraId,
+                        width,
+                        height)
     }
 
     /**
@@ -86,17 +95,19 @@ class PreviewActivity : AppCompatActivity() {
 
         private fun capturePicture(result: CaptureResult) {
             val afState = result.get(CaptureResult.CONTROL_AF_STATE)
-            if (afState == null || afState == CaptureResult.CONTROL_AF_STATE_INACTIVE) {
-                captureStillPicture()
-            } else if (afState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED
-                    || afState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
-                // CONTROL_AE_STATE can be null on some devices
-                val aeState = result.get(CaptureResult.CONTROL_AE_STATE)
-                if (aeState == null || aeState == CaptureResult.CONTROL_AE_STATE_CONVERGED) {
-                    mState = STATE_PICTURE_TAKEN
-                    captureStillPicture()
-                } else {
-                    runPrecaptureSequence()
+            when (afState) {
+                null, CaptureResult.CONTROL_AF_STATE_INACTIVE -> captureStillPicture()
+                CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED,
+                CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED -> {
+                    // CONTROL_AE_STATE can be null on some devices
+                    val aeState = result.get(CaptureResult.CONTROL_AE_STATE)
+                    when (aeState) {
+                        null, CaptureResult.CONTROL_AE_STATE_CONVERGED -> {
+                            mState = STATE_PICTURE_TAKEN
+                            captureStillPicture()
+                        }
+                        else -> runPrecaptureSequence()
+                    }
                 }
             }
         }
@@ -117,11 +128,11 @@ class PreviewActivity : AppCompatActivity() {
     private var mState = STATE_PREVIEW
 
     val CameraDevice.size: Size
-        get() {
-            val map = mCameraManager.getCameraCharacteristics(this.id)
+        get() =
+            mCameraManager.getCameraCharacteristics(id)
                     .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-            return map.getOutputSizes(SurfaceTexture::class.java)[0]
-        }
+                    .getOutputSizes(SurfaceTexture::class.java)[0]
+
 
     private val CameraDevice.isFlashSupported: Boolean
         get() =
@@ -234,6 +245,8 @@ class PreviewActivity : AppCompatActivity() {
 
         textureViewPreview.surfaceTextureListener = mTextureListener
         buttonTakePicture.setOnClickListener { takePicture() }
+
+        populateCameraSpinner()
     }
 
     override fun onResume() {
@@ -243,29 +256,35 @@ class PreviewActivity : AppCompatActivity() {
             mBackgroundHandler = Handler(it.looper)
         }
         if (textureViewPreview.isAvailable) {
-            openCamera(textureViewPreview.width, textureViewPreview.height)
+            val selectedCameraId = (spinnerSelectedCamera.selectedItem as CameraSpinnerItem).cameraId
+            openCamera(selectedCameraId, textureViewPreview.width, textureViewPreview.height)
         } else {
             textureViewPreview.surfaceTextureListener = mTextureListener
         }
+
+        spinnerSelectedCamera.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+
+            override fun onItemSelected(parent: AdapterView<*>?,
+                                        v: View?,
+                                        position: Int,
+                                        id: Long) {
+                if (spinnerSelectedCamera.adapter is ArrayAdapter<*>) {
+                    closeCamera()
+                    openCamera(mSpinnerCameraAdapter.getItem(position).cameraId,
+                            textureViewPreview.width,
+                            textureViewPreview.height)
+                }
+            }
+        }
+
     }
 
     override fun onPause() {
         super.onPause()
 
         // Close camera
-        try {
-            mCameraOpenCloseLock.acquire()
-            mCaptureSession?.close()
-            mCaptureSession = null
-            mSelectedCameraDevice?.close()
-            mSelectedCameraDevice = null
-            mImageReader?.close()
-            mImageReader = null
-        } catch (e: InterruptedException) {
-            throw RuntimeException("Interrupted while trying to lock camera closing.", e)
-        } finally {
-            mCameraOpenCloseLock.release()
-        }
+        closeCamera()
 
         // Stop background thread
         mBackgroundThread?.quitSafely()
@@ -305,9 +324,8 @@ class PreviewActivity : AppCompatActivity() {
 
     }
 
-    private fun openCamera(width: Int, height: Int) {
+    private fun openCamera(cameraId: String, width: Int, height: Int) {
 
-        val cameraId = mCameraManager.cameraIdList.last()
         // Set up camera outputs.
         val map = mCameraManager.getCameraCharacteristics(cameraId)
                 .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
@@ -392,6 +410,22 @@ class PreviewActivity : AppCompatActivity() {
             }
         } else {
             requestCameraPermission()
+        }
+    }
+
+    private fun closeCamera() {
+        try {
+            mCameraOpenCloseLock.acquire()
+            mCaptureSession?.close()
+            mCaptureSession = null
+            mSelectedCameraDevice?.close()
+            mSelectedCameraDevice = null
+            mImageReader?.close()
+            mImageReader = null
+        } catch (e: InterruptedException) {
+            throw RuntimeException("Interrupted while trying to lock camera closing.", e)
+        } finally {
+            mCameraOpenCloseLock.release()
         }
     }
 
@@ -610,5 +644,26 @@ class PreviewActivity : AppCompatActivity() {
             }
         }
         return swappedDimensions
+    }
+
+    private data class CameraSpinnerItem(val cameraId: String, val cameraName: String) {
+        override fun toString(): String {
+            return "$cameraId: $cameraName"
+        }
+    }
+
+    private fun populateCameraSpinner() {
+
+        for (cameraId in mCameraManager.cameraIdList) {
+            val cameraName = when (mCameraManager.getCameraCharacteristics(cameraId).get(
+                    CameraCharacteristics.LENS_FACING)) {
+                CameraCharacteristics.LENS_FACING_FRONT -> "FRONT"
+                CameraCharacteristics.LENS_FACING_BACK -> "BACK"
+                CameraCharacteristics.LENS_FACING_EXTERNAL -> "EXTERNAL"
+                else -> "UNKNOWN"
+            }
+            mSpinnerCameraAdapter.add(CameraSpinnerItem(cameraId, cameraName))
+        }
+        spinnerSelectedCamera.adapter = mSpinnerCameraAdapter
     }
 }
