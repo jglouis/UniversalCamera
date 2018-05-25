@@ -269,19 +269,21 @@ class PreviewActivity : AppCompatActivity() {
                                         v: View?,
                                         position: Int,
                                         id: Long) {
-                if (spinnerSelectedCamera.adapter is ArrayAdapter<*>) {
-                    closeCamera()
-                    openCamera(mSpinnerCameraAdapter.getItem(position).cameraId,
-                            textureViewPreview.width,
-                            textureViewPreview.height)
+                if (textureViewPreview.isAvailable) {
+                    if (spinnerSelectedCamera.adapter is ArrayAdapter<*>) {
+                        closeCamera()
+                        openCamera(mSpinnerCameraAdapter.getItem(position).cameraId,
+                                textureViewPreview.width,
+                                textureViewPreview.height)
+                    }
                 }
             }
         }
-
     }
 
     override fun onPause() {
         super.onPause()
+        spinnerSelectedCamera.onItemSelectedListener = null
 
         // Close camera
         closeCamera()
@@ -498,10 +500,12 @@ class PreviewActivity : AppCompatActivity() {
 
                                 // Finally, we start displaying the camera preview.
                                 mPreviewRequest = mCaptureRequestBuilder.build()
-                                cameraCaptureSession.setRepeatingRequest(mPreviewRequest,
+                                mCaptureSession?.setRepeatingRequest(mPreviewRequest,
                                         mCaptureCallback, null)
                             } catch (e: CameraAccessException) {
-                                Log.e(TAG, e.toString())
+                                Log.e(TAG, "", e)
+                            } catch (e: IllegalStateException) {
+                                Log.e(TAG, "", e)
                             }
                         }
                     }, mBackgroundHandler)
