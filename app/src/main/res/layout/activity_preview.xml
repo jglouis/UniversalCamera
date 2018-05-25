@@ -7,21 +7,22 @@
     android:layout_height="match_parent"
     tools:context=".PreviewActivity">
 
-    <TextureView
+    <xyz.hexode.universalcamera.AutoFitTextureView
         android:id="@+id/textureViewPreview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
 
-    <android.support.v7.widget.AppCompatButton
+    <android.support.design.widget.FloatingActionButton
         android:id="@+id/buttonTakePicture"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:layout_marginEnd="8dp"
         android:layout_marginStart="8dp"
-        android:text="@string/take_picture"
-        app:layout_constraintBottom_toBottomOf="@+id/textureViewPreview"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="@+id/textureViewPreview"/>
+        app:layout_constraintStart_toStartOf="parent"
+        app:srcCompat="@android:drawable/ic_menu_camera"/>
+
 
 </android.support.constraint.ConstraintLayout>
