@@ -9,7 +9,7 @@
 
     <xyz.hexode.universalcamera.AutoFitTextureView
         android:id="@+id/textureViewPreview"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="match_parent"/>
 
     <android.support.design.widget.FloatingActionButton
@@ -24,14 +24,38 @@
         app:layout_constraintStart_toStartOf="parent"
         app:srcCompat="@android:drawable/ic_menu_camera"/>
 
-    <Spinner
-        android:id="@+id/spinnerSelectedCamera"
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/buttonAcceptCapture"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:layout_marginStart="8dp"
+        android:visibility="gone"
+        app:backgroundTint="@android:color/holo_green_light"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        android:entries="@array/sample_camera_spinner_item"/>
+        app:srcCompat="@android:drawable/ic_menu_save"/>
+
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/buttonRejectCapture"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:layout_marginEnd="8dp"
+        android:visibility="gone"
+        app:backgroundTint="@android:color/holo_red_light"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:srcCompat="@android:drawable/ic_delete"/>
+
+    <Spinner
+        android:id="@+id/spinnerSelectedCamera"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:entries="@array/sample_camera_spinner_item"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"/>
 
 </android.support.constraint.ConstraintLayout>

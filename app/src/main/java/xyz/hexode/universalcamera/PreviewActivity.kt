@@ -43,6 +43,9 @@ class PreviewActivity : AppCompatActivity() {
     private val mCameraManager by lazy { getSystemService(Context.CAMERA_SERVICE) as CameraManager }
     private var mBackgroundThread: HandlerThread? = null
     private var mBackgroundHandler: Handler? = null
+    private val mTempSaveFile by lazy {
+        File("${getExternalFilesDir(null)}/.tmp.jpg")
+    }
     private val mSaveFile by lazy {
         File("${getExternalFilesDir(null)}/pic.jpg")
     }
@@ -245,8 +248,27 @@ class PreviewActivity : AppCompatActivity() {
 
         textureViewPreview.surfaceTextureListener = mTextureListener
         buttonTakePicture.setOnClickListener { takePicture() }
+        buttonAcceptCapture.setOnClickListener {
+            updateUI(false)
+            mTempSaveFile.copyTo(mSaveFile, true)
+            Toast.makeText(
+                    this@PreviewActivity,
+                    "Saved: $mSaveFile",
+                    Toast.LENGTH_SHORT).show()
+            unlockFocus()
+        }
+        buttonRejectCapture.setOnClickListener {
+            updateUI(false)
+            unlockFocus()
+        }
 
         populateCameraSpinner()
+    }
+
+    private fun updateUI(isValidationMode: Boolean) {
+        buttonAcceptCapture.visibility = if (isValidationMode) View.VISIBLE else View.GONE
+        buttonRejectCapture.visibility = if (isValidationMode) View.VISIBLE else View.GONE
+        buttonTakePicture.visibility = if (isValidationMode) View.GONE else View.VISIBLE
     }
 
     override fun onResume() {
@@ -341,7 +363,7 @@ class PreviewActivity : AppCompatActivity() {
                     setOnImageAvailableListener(
                             {
                                 mBackgroundHandler
-                                        ?.post(ImageSaver(it.acquireNextImage(), mSaveFile))
+                                        ?.post(ImageSaver(it.acquireNextImage(), mTempSaveFile))
                             },
                             mBackgroundHandler
                     )
@@ -551,13 +573,9 @@ class PreviewActivity : AppCompatActivity() {
                                                 request: CaptureRequest,
                                                 result: TotalCaptureResult) {
                     runOnUiThread {
-                        Toast.makeText(
-                                this@PreviewActivity,
-                                "Saved: $mSaveFile",
-                                Toast.LENGTH_SHORT).show()
+                        updateUI(true)
                     }
-                    Log.d(TAG, mSaveFile.toString())
-                    unlockFocus()
+//                    unlockFocus() --> wait until user validation
                 }
             }
 
