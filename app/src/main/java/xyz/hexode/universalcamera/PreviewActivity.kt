@@ -615,7 +615,6 @@ class PreviewActivity : AppCompatActivity() {
     }
 
     private fun configureTransform(viewWidth: Int, viewHeight: Int) {
-        mSelectedCameraDevice ?: return
         val rotation = windowManager.defaultDisplay.rotation
         val matrix = Matrix()
         val viewRect = RectF(0f, 0f, viewWidth.toFloat(), viewHeight.toFloat())
