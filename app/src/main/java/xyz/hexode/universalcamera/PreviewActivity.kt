@@ -553,10 +553,11 @@ class PreviewActivity : AppCompatActivity() {
     private fun captureStillPicture() {
         try {
             mSelectedCameraDevice?.let {
+                selectedCameraDevice ->
                 val rotation = windowManager.defaultDisplay.rotation
 
                 // This is the CaptureRequest.Builder that we use to take a picture.
-                val captureBuilder = it.createCaptureRequest(
+                val captureBuilder = selectedCameraDevice.createCaptureRequest(
                         CameraDevice.TEMPLATE_STILL_CAPTURE).apply {
                     addTarget(mImageReader!!.surface)
 
