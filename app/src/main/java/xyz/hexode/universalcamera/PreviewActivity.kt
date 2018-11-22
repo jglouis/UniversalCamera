@@ -133,7 +133,7 @@ class PreviewActivity : AppCompatActivity() {
     val CameraDevice.size: Size
         get() =
             mCameraManager.getCameraCharacteristics(id)
-                    .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                    .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!
                     .getOutputSizes(SurfaceTexture::class.java)[0]
 
 
@@ -143,7 +143,7 @@ class PreviewActivity : AppCompatActivity() {
                     .get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
 
     companion object {
-        val TAG = PreviewActivity::class.java.simpleName!!
+        val TAG: String = PreviewActivity::class.java.simpleName
         const val MY_PERMISSIONS_REQUEST_CAMERA = 0
         private val SCREEN_ORIENTATIONS_TO_JPEG = SparseIntArray().apply {
             append(Surface.ROTATION_0, 90)
@@ -266,9 +266,15 @@ class PreviewActivity : AppCompatActivity() {
     }
 
     private fun updateUI(isValidationMode: Boolean) {
-        buttonAcceptCapture.visibility = if (isValidationMode) View.VISIBLE else View.GONE
-        buttonRejectCapture.visibility = if (isValidationMode) View.VISIBLE else View.GONE
-        buttonTakePicture.visibility = if (isValidationMode) View.GONE else View.VISIBLE
+        if (isValidationMode) {
+            buttonAcceptCapture.show()
+            buttonRejectCapture.show()
+            buttonTakePicture.hide()
+        } else {
+            buttonAcceptCapture.hide()
+            buttonRejectCapture.hide()
+            buttonTakePicture.show()
+        }
     }
 
     override fun onResume() {
@@ -294,9 +300,11 @@ class PreviewActivity : AppCompatActivity() {
                 if (textureViewPreview.isAvailable) {
                     if (spinnerSelectedCamera.adapter is ArrayAdapter<*>) {
                         closeCamera()
-                        openCamera(mSpinnerCameraAdapter.getItem(position).cameraId,
-                                textureViewPreview.width,
-                                textureViewPreview.height)
+                        mSpinnerCameraAdapter.getItem(position)?.let {
+                            openCamera(it.cameraId,
+                                    textureViewPreview.width,
+                                    textureViewPreview.height)
+                        }
                     }
                 }
             }
@@ -352,7 +360,7 @@ class PreviewActivity : AppCompatActivity() {
 
         // Set up camera outputs.
         val map = mCameraManager.getCameraCharacteristics(cameraId)
-                .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!
         // For still image captures, we use the largest available size.
         val largest = Collections.max(
                 Arrays.asList(*map.getOutputSizes(ImageFormat.JPEG)),
@@ -544,45 +552,47 @@ class PreviewActivity : AppCompatActivity() {
      */
     private fun captureStillPicture() {
         try {
-            mSelectedCameraDevice ?: return
-            val rotation = windowManager.defaultDisplay.rotation
+            mSelectedCameraDevice?.let {
+                val rotation = windowManager.defaultDisplay.rotation
 
-            // This is the CaptureRequest.Builder that we use to take a picture.
-            val captureBuilder = mSelectedCameraDevice!!.createCaptureRequest(
-                    CameraDevice.TEMPLATE_STILL_CAPTURE)?.apply {
-                addTarget(mImageReader!!.surface)
+                // This is the CaptureRequest.Builder that we use to take a picture.
+                val captureBuilder = it.createCaptureRequest(
+                        CameraDevice.TEMPLATE_STILL_CAPTURE).apply {
+                    addTarget(mImageReader!!.surface)
 
-                // Sensor orientation is 90 for most devices, or 270 for some devices (eg. Nexus 5X)
-                // We have to take that into account and rotate JPEG properly.
-                // For devices with orientation of 90, we return our mapping from ORIENTATIONS.
-                // For devices with orientation of 270, we need to rotate the JPEG 180 degrees.
-                val sensorOrientation = mCameraManager
-                        .getCameraCharacteristics(mSelectedCameraDevice?.id)
-                        .get(CameraCharacteristics.SENSOR_ORIENTATION)
-                set(CaptureRequest.JPEG_ORIENTATION,
-                        (SCREEN_ORIENTATIONS_TO_JPEG.get(rotation) + sensorOrientation + 270) % 360)
+                    // Sensor orientation is 90 for most devices, or 270 for some devices (eg. Nexus 5X)
+                    // We have to take that into account and rotate JPEG properly.
+                    // For devices with orientation of 90, we return our mapping from ORIENTATIONS.
+                    // For devices with orientation of 270, we need to rotate the JPEG 180 degrees.
+                    val sensorOrientation = mCameraManager
+                            .getCameraCharacteristics(mSelectedCameraDevice!!.id)
+                            .get(CameraCharacteristics.SENSOR_ORIENTATION)
+                    set(CaptureRequest.JPEG_ORIENTATION,
+                            (SCREEN_ORIENTATIONS_TO_JPEG.get(rotation) + (sensorOrientation
+                                    ?: 0) + 270) % 360)
 
-                // Use the same AE and AF modes as the preview.
-                set(CaptureRequest.CONTROL_AF_MODE,
-                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-            }?.also { setAutoFlash(it) }
+                    // Use the same AE and AF modes as the preview.
+                    set(CaptureRequest.CONTROL_AF_MODE,
+                            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+                }.also { setAutoFlash(it) }
 
-            val captureCallback = object : CameraCaptureSession.CaptureCallback() {
+                val captureCallback = object : CameraCaptureSession.CaptureCallback() {
 
-                override fun onCaptureCompleted(session: CameraCaptureSession,
-                                                request: CaptureRequest,
-                                                result: TotalCaptureResult) {
-                    runOnUiThread {
-                        updateUI(true)
-                    }
+                    override fun onCaptureCompleted(session: CameraCaptureSession,
+                                                    request: CaptureRequest,
+                                                    result: TotalCaptureResult) {
+                        runOnUiThread {
+                            updateUI(true)
+                        }
 //                    unlockFocus() --> wait until user validation
+                    }
                 }
-            }
 
-            mCaptureSession?.apply {
-                stopRepeating()
-                abortCaptures()
-                capture(captureBuilder?.build(), captureCallback, null)
+                mCaptureSession?.apply {
+                    stopRepeating()
+                    abortCaptures()
+                    capture(captureBuilder.build(), captureCallback, null)
+                }
             }
         } catch (e: CameraAccessException) {
             Log.e(TAG, "", e)
